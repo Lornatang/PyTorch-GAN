@@ -233,16 +233,16 @@ def train():
             # Step 1: Train Discriminator network
             # math: `maximize log(D(x)) + log(1 - D(G(z)))`
             ###############################################
+            # load train datasets
+            netD.zero_grad()
+            real_data = data[0].to(device)
+            batch_size = real_data.size(0)
+
             # real img label is 1, fake img label is 0.
             real_label = torch.full((batch_size,), 1, device=device)
             fake_label = torch.full((batch_size,), 0, device=device)
             # sample noise as generator input
             noise = torch.randn(batch_size, nz, 1, 1, device=device)
-
-            # load train datasets
-            netD.zero_grad()
-            real_data = data[0].to(device)
-            batch_size = real_data.size(0)
 
             # train with real datasets
             output = netD(real_data)

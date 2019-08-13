@@ -72,8 +72,8 @@ if opt.dataset in ['imagenet', 'folder', 'lfw']:
     # folder dataset
     dataset = dset.ImageFolder(root=opt.dataroot,
                                transform=transforms.Compose([
-                                   transforms.Resize(opt.imageSize),
-                                   transforms.CenterCrop(opt.imageSize),
+                                   transforms.Resize(opt.image_size),
+                                   transforms.CenterCrop(opt.image_size),
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
@@ -81,8 +81,8 @@ if opt.dataset in ['imagenet', 'folder', 'lfw']:
 elif opt.dataset == 'lsun':
     dataset = dset.LSUN(root=opt.dataroot, classes=['bedroom_train'],
                         transform=transforms.Compose([
-                            transforms.Resize(opt.imageSize),
-                            transforms.CenterCrop(opt.imageSize),
+                            transforms.Resize(opt.image_size),
+                            transforms.CenterCrop(opt.image_size),
                             transforms.ToTensor(),
                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                         ]))
@@ -90,7 +90,7 @@ elif opt.dataset == 'lsun':
 elif opt.dataset == 'cifar10':
     dataset = dset.CIFAR10(root=opt.dataroot, download=True,
                            transform=transforms.Compose([
-                               transforms.Resize(opt.imageSize),
+                               transforms.Resize(opt.image_size),
                                transforms.ToTensor(),
                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                            ]))
@@ -99,19 +99,19 @@ elif opt.dataset == 'cifar10':
 elif opt.dataset == 'mnist':
     dataset = dset.MNIST(root=opt.dataroot, download=True,
                          transform=transforms.Compose([
-                             transforms.Resize(opt.imageSize),
+                             transforms.Resize(opt.image_size),
                              transforms.ToTensor(),
                              transforms.Normalize((0.5,), (0.5,)),
                          ]))
     nc = 1
 
 elif opt.dataset == 'fake':
-    dataset = dset.FakeData(image_size=(3, opt.imageSize, opt.imageSize),
+    dataset = dset.FakeData(image_size=(3, opt.image_size, opt.image_size),
                             transform=transforms.ToTensor())
     nc = 3
 
 assert dataset
-dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
+dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,
                                          shuffle=True, num_workers=int(opt.workers))
 
 device = torch.device("cuda:0" if opt.cuda else "cpu")

@@ -19,19 +19,20 @@ that look real, while a discriminator ("the art critic") learns
 to tell real images apart from fakes.
 """
 
+"""This codecopy form website {https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/gan/gan.py}
+"""
+
 import argparse
 import os
+
 import numpy as np
-
+import torch
+import torch.nn as nn
 import torchvision.transforms as transforms
-from torchvision.utils import save_image
-
+from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import datasets
-from torch.autograd import Variable
-
-import torch.nn as nn
-import torch
+from torchvision.utils import save_image
 
 os.makedirs("images", exist_ok=True)
 

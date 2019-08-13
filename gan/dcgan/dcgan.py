@@ -265,7 +265,7 @@ def train():
             D_G_z2 = output.mean().item()
             optimizerG.step()
 
-            print(f"Epoch->[{epoch}/{opt.niter}] "
+            print(f"Epoch->[{epoch}/{opt.n_epochs}] "
                   f"Progress->[{i / len(dataloader) * 100}]% "
                   f"Loss_D: {errD.item():.4f} "
                   f"Loss_G: {errG.item():.4f} "

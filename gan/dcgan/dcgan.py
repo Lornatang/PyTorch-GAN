@@ -269,7 +269,7 @@ def train():
                   f"Loss_D: {errD.item():.4f} "
                   f"Loss_G: {errG.item():.4f} "
                   f"D(x): {D_x:.4f} "
-                  f"D(G(z)): {D_G_z1:.4f} / {D_G_z2:.4f}", end="")
+                  f"D(G(z)): {D_G_z1:.4f} / {D_G_z2:.4f}", end="", flush=True)
 
             if i % 100 == 0:
                 vutils.save_image(real_data, f"{opt.outf}/real_samples.png", normalize=True)

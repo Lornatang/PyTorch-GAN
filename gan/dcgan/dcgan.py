@@ -34,7 +34,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='mnist | fashion-mnist')
 parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
-parser.add_argument('--batch_size', type=int, default=64, help='inputs batch size')
+parser.add_argument('--batch_size', type=int, default=128, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=64, help='the height / width of the inputs image to network')
 parser.add_argument('--nz', type=int, default=256, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
@@ -99,6 +99,15 @@ elif opt.dataset == 'cifar10':
 
 elif opt.dataset == 'mnist':
     dataset = dset.MNIST(root=opt.dataroot, download=True,
+                         transform=transforms.Compose([
+                             transforms.Resize(opt.image_size),
+                             transforms.ToTensor(),
+                             transforms.Normalize((0.5,), (0.5,)),
+                         ]))
+    nc = 1
+
+elif opt.dataset == 'fashion-mnist':
+    dataset = dset.FashionMNIST(root=opt.dataroot, download=True,
                          transform=transforms.Compose([
                              transforms.Resize(opt.image_size),
                              transforms.ToTensor(),

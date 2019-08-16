@@ -32,7 +32,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets, help='path to dataset')
+parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
 parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=28, help='the height / width of the inputs image to network')

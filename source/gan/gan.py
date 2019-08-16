@@ -128,6 +128,7 @@ def train():
   #               load train dataset
   ################################################
   dataset = dset.MNIST(root=opt.dataroot,
+                       download=True,
                        transform=transforms.Compose([
                          transforms.Resize(opt.image_size),
                          transforms.ToTensor(),

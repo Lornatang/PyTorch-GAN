@@ -32,7 +32,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataroot', required=True, type=str, help='path to dataset')
+parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
 parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=28, help='the height / width of the inputs image to network')
@@ -94,7 +94,7 @@ class Generator(nn.Module):
       outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
     else:
       outputs = self.main(inputs)
-    return outputs.view(-1, 1).squeeze(1)
+    return outputs.view(outputs.size(0), *(1, 28, 28))
 
 
 class Discriminator(nn.Module):

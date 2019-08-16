@@ -131,4 +131,4 @@ dmypy.json
 
 # image file
 *.png
-gan/gan/images
+source/gan/images

@@ -94,7 +94,7 @@ class Generator(nn.Module):
       outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
     else:
       outputs = self.main(inputs)
-    return outputs.view(-1, 1).squeeze(1)
+    return outputs.view(outputs.size(0), -1)
 
 
 class Discriminator(nn.Module):

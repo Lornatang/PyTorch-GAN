@@ -22,6 +22,11 @@ to tell real images apart from fakes.
 import argparse
 import os
 import random
+import glob
+
+import imageio
+import IPython
+from IPython import display
 
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
@@ -46,7 +51,7 @@ parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 parser.add_argument('--netD', default='', help="path to netD (to continue training)")
 parser.add_argument('--out_images', default='./imgs', help='folder to output images')
-parser.add_argument('--out_folder', default='./checkpoints', help='folder to output model checkpoints')
+parser.add_argument('--checkpoints_dir', default='./checkpoints', help='folder to output model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--phase', type=str, default='train', help='model mode. default=`train`')
 
@@ -244,8 +249,8 @@ def train():
         vutils.save_image(fake, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)
 
     # do checkpointing
-    torch.save(netG.state_dict(), f"{opt.out_folder}/netG_epoch_{epoch + 1:03d}.pth")
-    torch.save(netD.state_dict(), f"{opt.out_folder}/netD_epoch_{epoch + 1:03d}.pth")
+    torch.save(netG.state_dict(), f"{opt.checkpoints_dir}/netG_epoch_{epoch + 1:03d}.pth")
+    torch.save(netD.state_dict(), f"{opt.checkpoints_dir}/netD_epoch_{epoch + 1:03d}.pth")
 
 
 def generate():
@@ -264,9 +269,34 @@ def generate():
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
 
 
+def create_gif(file_name):
+  """ auto generate gif
+  Args:
+      file_name:
+  """
+  with imageio.get_writer(file_name, mode='I') as writer:
+    filenames = glob.glob(opt.out_images + '/' + '*.png')
+    filenames = sorted(filenames)
+    last = -1
+    for i, filename in enumerate(filenames):
+      frame = 2 * (i ** 0.5)
+      if round(frame) > round(last):
+        last = frame
+      else:
+        continue
+      image = imageio.imread(filename)
+      writer.append_data(image)
+    image = imageio.imread(filename)
+    writer.append_data(image)
+
+  if IPython.version_info > (6, 2, 0, ''):
+    display.Image(filename=file_name)
+
+
 if __name__ == '__main__':
   if opt.phase == 'train':
     train()
+    create_gif("gan.gif")
   elif opt.phase == 'generate':
     generate()
   else:

@@ -1,3 +1,5 @@
+IPython
+imageio
 pillow
 torch
 torchvision

@@ -186,7 +186,6 @@ def train():
   ################################################
   #               load train dataset
   ################################################
-  dset.Caltech101
   dataset = dset.FashionMNIST(root=opt.dataroot,
                               download=True,
                               transform=transforms.Compose([

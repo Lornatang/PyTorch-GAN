@@ -51,7 +51,6 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--phase', type=str, default='train', help='model mode. default=`train`')
 
 opt = parser.parse_args()
-print(opt)
 
 try:
   os.makedirs(opt.out_images)
@@ -61,7 +60,6 @@ except OSError:
 
 if opt.manualSeed is None:
   opt.manualSeed = random.randint(1, 10000)
-print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
@@ -84,7 +82,8 @@ class Generator(nn.Module):
     self.ngpu = ngpu
 
     self.main = nn.Sequential(
-      nn.Linear(nz, 256),
+      nn.Linear(nz, 128),
+      nn.Linear(128, 256),
       nn.Linear(256, 512),
       nn.Linear(512, 1024),
       nn.Linear(1024, 784),

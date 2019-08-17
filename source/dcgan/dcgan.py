@@ -21,10 +21,10 @@ to tell real images apart from fakes.
 
 import argparse
 import os
-import sys
 import random
-import torch.nn as nn
+
 import torch.backends.cudnn as cudnn
+import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data
 import torchvision.datasets as dset
@@ -55,12 +55,12 @@ opt = parser.parse_args()
 print(opt)
 
 try:
-    os.makedirs(opt.outf)
+  os.makedirs(opt.outf)
 except OSError:
-    pass
+  pass
 
 if opt.manualSeed is None:
-    opt.manualSeed = random.randint(1, 10000)
+  opt.manualSeed = random.randint(1, 10000)
 print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
@@ -68,58 +68,58 @@ torch.manual_seed(opt.manualSeed)
 cudnn.benchmark = True
 
 if torch.cuda.is_available() and not opt.cuda:
-    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+  print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
 if opt.dataset in ['imagenet', 'folder', 'lfw']:
-    # folder dataset
-    dataset = dset.ImageFolder(root=opt.dataroot,
-                               transform=transforms.Compose([
-                                   transforms.Resize(opt.image_size),
-                                   transforms.CenterCrop(opt.image_size),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                               ]))
-    nc = 3
-elif opt.dataset == 'lsun':
-    dataset = dset.LSUN(root=opt.dataroot, classes=['bedroom_train'],
-                        transform=transforms.Compose([
-                            transforms.Resize(opt.image_size),
-                            transforms.CenterCrop(opt.image_size),
-                            transforms.ToTensor(),
-                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                        ]))
-    nc = 3
-elif opt.dataset == 'cifar10':
-    dataset = dset.CIFAR10(root=opt.dataroot, download=True,
-                           transform=transforms.Compose([
+  # folder dataset
+  dataset = dset.ImageFolder(root=opt.dataroot,
+                             transform=transforms.Compose([
                                transforms.Resize(opt.image_size),
+                               transforms.CenterCrop(opt.image_size),
                                transforms.ToTensor(),
                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                           ]))
-    nc = 3
+                             ]))
+  nc = 3
+elif opt.dataset == 'lsun':
+  dataset = dset.LSUN(root=opt.dataroot, classes=['bedroom_train'],
+                      transform=transforms.Compose([
+                        transforms.Resize(opt.image_size),
+                        transforms.CenterCrop(opt.image_size),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                      ]))
+  nc = 3
+elif opt.dataset == 'cifar10':
+  dataset = dset.CIFAR10(root=opt.dataroot, download=True,
+                         transform=transforms.Compose([
+                           transforms.Resize(opt.image_size),
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                         ]))
+  nc = 3
 
 elif opt.dataset == 'mnist':
-    dataset = dset.MNIST(root=opt.dataroot, download=True,
-                         transform=transforms.Compose([
-                             transforms.Resize(opt.image_size),
-                             transforms.ToTensor(),
-                             transforms.Normalize((0.5,), (0.5,)),
-                         ]))
-    nc = 1
+  dataset = dset.MNIST(root=opt.dataroot, download=True,
+                       transform=transforms.Compose([
+                         transforms.Resize(opt.image_size),
+                         transforms.ToTensor(),
+                         transforms.Normalize((0.5,), (0.5,)),
+                       ]))
+  nc = 1
 
 elif opt.dataset == 'fashion-mnist':
-    dataset = dset.FashionMNIST(root=opt.dataroot, download=True,
-                         transform=transforms.Compose([
-                             transforms.Resize(opt.image_size),
-                             transforms.ToTensor(),
-                             transforms.Normalize((0.5,), (0.5,)),
-                         ]))
-    nc = 1
+  dataset = dset.FashionMNIST(root=opt.dataroot, download=True,
+                              transform=transforms.Compose([
+                                transforms.Resize(opt.image_size),
+                                transforms.ToTensor(),
+                                transforms.Normalize((0.5,), (0.5,)),
+                              ]))
+  nc = 1
 
 elif opt.dataset == 'fake':
-    dataset = dset.FakeData(image_size=(3, opt.image_size, opt.image_size),
-                            transform=transforms.ToTensor())
-    nc = 3
+  dataset = dset.FakeData(image_size=(3, opt.image_size, opt.image_size),
+                          transform=transforms.ToTensor())
+  nc = 3
 
 assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,
@@ -134,94 +134,94 @@ ndf = int(opt.ndf)
 
 # custom weights initialization called on netG and netD
 def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        m.weight.data.normal_(0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
-        m.weight.data.normal_(1.0, 0.02)
-        m.bias.data.fill_(0)
+  classname = m.__class__.__name__
+  if classname.find('Conv') != -1:
+    m.weight.data.normal_(0.0, 0.02)
+  elif classname.find('BatchNorm') != -1:
+    m.weight.data.normal_(1.0, 0.02)
+    m.bias.data.fill_(0)
 
 
 class Generator(nn.Module):
-    def __init__(self, gpus):
-        super(Generator, self).__init__()
-        self.ngpu = gpus
-        self.main = nn.Sequential(
-            # inputs is Z, going into a convolution
-            nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
-            nn.BatchNorm2d(ngf * 8),
-            nn.ReLU(True),
-            # state size. (ngf*8) x 4 x 4
-            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ngf * 4),
-            nn.ReLU(True),
-            # state size. (ngf*4) x 8 x 8
-            nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ngf * 2),
-            nn.ReLU(True),
-            # state size. (ngf*2) x 16 x 16
-            nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.ReLU(True),
-            # state size. (ngf) x 32 x 32
-            nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),
-            nn.Tanh()
-            # state size. (nc) x 64 x 64
-        )
+  def __init__(self, gpus):
+    super(Generator, self).__init__()
+    self.ngpu = gpus
+    self.main = nn.Sequential(
+      # inputs is Z, going into a convolution
+      nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
+      nn.BatchNorm2d(ngf * 8),
+      nn.ReLU(True),
+      # state size. (ngf*8) x 4 x 4
+      nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ngf * 4),
+      nn.ReLU(True),
+      # state size. (ngf*4) x 8 x 8
+      nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ngf * 2),
+      nn.ReLU(True),
+      # state size. (ngf*2) x 16 x 16
+      nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ngf),
+      nn.ReLU(True),
+      # state size. (ngf) x 32 x 32
+      nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),
+      nn.Tanh()
+      # state size. (nc) x 64 x 64
+    )
 
-    def forward(self, inputs):
-        if inputs.is_cuda and self.ngpu > 1:
-            outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
-        else:
-            outputs = self.main(inputs)
-        return outputs
+  def forward(self, inputs):
+    if inputs.is_cuda and self.ngpu > 1:
+      outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
+    else:
+      outputs = self.main(inputs)
+    return outputs
 
 
 netG = Generator(ngpu).to(device)
 netG.apply(weights_init)
 if opt.netG != '':
-    torch.load(opt.netG)
+  torch.load(opt.netG)
 print(netG)
 
 
 class Discriminator(nn.Module):
-    def __init__(self, gpus):
-        super(Discriminator, self).__init__()
-        self.ngpu = gpus
-        self.main = nn.Sequential(
-            # inputs is (nc) x 64 x 64
-            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf) x 32 x 32
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*2) x 16 x 16
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*4) x 8 x 8
-            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 8),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 4 x 4
-            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
-            nn.Sigmoid()
-        )
+  def __init__(self, gpus):
+    super(Discriminator, self).__init__()
+    self.ngpu = gpus
+    self.main = nn.Sequential(
+      # inputs is (nc) x 64 x 64
+      nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+      nn.LeakyReLU(0.2, inplace=True),
+      # state size. (ndf) x 32 x 32
+      nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 2),
+      nn.LeakyReLU(0.2, inplace=True),
+      # state size. (ndf*2) x 16 x 16
+      nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 4),
+      nn.LeakyReLU(0.2, inplace=True),
+      # state size. (ndf*4) x 8 x 8
+      nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 8),
+      nn.LeakyReLU(0.2, inplace=True),
+      # state size. (ndf*8) x 4 x 4
+      nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+      nn.Sigmoid()
+    )
 
-    def forward(self, inputs):
-        if inputs.is_cuda and self.ngpu > 1:
-            outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
-        else:
-            outputs = self.main(inputs)
+  def forward(self, inputs):
+    if inputs.is_cuda and self.ngpu > 1:
+      outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
+    else:
+      outputs = self.main(inputs)
 
-        return outputs.view(-1, 1).squeeze(1)
+    return outputs.view(-1, 1).squeeze(1)
 
 
 netD = Discriminator(ngpu).to(device)
 netD.apply(weights_init)
 if opt.netD != '':
-    torch.load(opt.netD)
+  torch.load(opt.netD)
 print(netD)
 
 criterion = nn.BCELoss()
@@ -234,62 +234,62 @@ optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta
 
 
 def train():
-    """ train model
-    """
-    for epoch in range(opt.n_epochs):
-        for i, data in enumerate(dataloader, 0):
-            ############################
-            # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            ###########################
-            # train with real
-            netD.zero_grad()
-            real_data = data[0].to(device)
-            batch_size = real_data.size(0)
+  """ train model
+  """
+  for epoch in range(opt.n_epochs):
+    for i, data in enumerate(dataloader, 0):
+      ############################
+      # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+      ###########################
+      # train with real
+      netD.zero_grad()
+      real_data = data[0].to(device)
+      batch_size = real_data.size(0)
 
-            # real data label is 1, fake data label is 0.
-            real_label = torch.full((batch_size,), 1, device=device)
-            fake_label = torch.full((batch_size,), 0, device=device)
+      # real data label is 1, fake data label is 0.
+      real_label = torch.full((batch_size,), 1, device=device)
+      fake_label = torch.full((batch_size,), 0, device=device)
 
-            output = netD(real_data)
-            errD_real = criterion(output, real_label)
-            errD_real.backward()
-            D_x = output.mean().item()
+      output = netD(real_data)
+      errD_real = criterion(output, real_label)
+      errD_real.backward()
+      D_x = output.mean().item()
 
-            # train with fake
-            noise = torch.randn(batch_size, nz, 1, 1, device=device)
-            fake = netG(noise)
-            output = netD(fake.detach())
-            errD_fake = criterion(output, fake_label)
-            errD_fake.backward()
-            D_G_z1 = output.mean().item()
-            errD = errD_real + errD_fake
-            optimizerD.step()
+      # train with fake
+      noise = torch.randn(batch_size, nz, 1, 1, device=device)
+      fake = netG(noise)
+      output = netD(fake.detach())
+      errD_fake = criterion(output, fake_label)
+      errD_fake.backward()
+      D_G_z1 = output.mean().item()
+      errD = errD_real + errD_fake
+      optimizerD.step()
 
-            ############################
-            # (2) Update G network: maximize log(D(G(z)))
-            ###########################
-            netG.zero_grad()
-            output = netD(fake)
-            errG = criterion(output, real_label)
-            errG.backward()
-            D_G_z2 = output.mean().item()
-            optimizerG.step()
-            print(f"Epoch->[{epoch}/{opt.n_epochs}]"
-                  f"Progress->{i / len(dataloader) * 100:.2f}% "
-                  f"Loss_D: {errD.item():.4f} "
-                  f"Loss_G: {errG.item():.4f} "
-                  f"D(x): {D_x:.4f} "
-                  f"D(G(z)): {D_G_z1:.4f} / {D_G_z2:.4f}", end="\r")
+      ############################
+      # (2) Update G network: maximize log(D(G(z)))
+      ###########################
+      netG.zero_grad()
+      output = netD(fake)
+      errG = criterion(output, real_label)
+      errG.backward()
+      D_G_z2 = output.mean().item()
+      optimizerG.step()
+      print(f"Epoch->[{epoch}/{opt.n_epochs}]"
+            f"Progress->{i / len(dataloader) * 100:.2f}% "
+            f"Loss_D: {errD.item():.4f} "
+            f"Loss_G: {errG.item():.4f} "
+            f"D(x): {D_x:.4f} "
+            f"D(G(z)): {D_G_z1:.4f} / {D_G_z2:.4f}", end="\r")
 
-            if i % 100 == 0:
-                vutils.save_image(real_data, f"{opt.outf}/real_samples.png", normalize=True)
-                fake = netG(fixed_noise)
-                vutils.save_image(fake.detach(), f"{opt.outf}/fake_samples_epoch_{epoch:03d}.png", normalize=True)
+      if i % 100 == 0:
+        vutils.save_image(real_data, f"{opt.outf}/real_samples.png", normalize=True)
+        fake = netG(fixed_noise)
+        vutils.save_image(fake.detach(), f"{opt.outf}/fake_samples_epoch_{epoch:03d}.png", normalize=True)
 
-        # do checkpointing
-        torch.save(netG, f"{opt.outf}/netG_epoch_{epoch:03d}")
-        torch.save(netD, f"{opt.outf}/netD_epoch_{epoch:03d}")
+    # do checkpointing
+    torch.save(netG, f"{opt.outf}/netG_epoch_{epoch:03d}")
+    torch.save(netD, f"{opt.outf}/netD_epoch_{epoch:03d}")
 
 
 if __name__ == '__main__':
-    train()
+  train()

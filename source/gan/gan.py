@@ -77,6 +77,8 @@ nz = int(opt.nz)
 
 
 class Generator(nn.Module):
+  """ generate model
+  """
   def __init__(self, ngpu):
     super(Generator, self).__init__()
     self.ngpu = ngpu
@@ -90,6 +92,12 @@ class Generator(nn.Module):
     )
 
   def forward(self, inputs):
+    """ forward layer
+    Args:
+      inputs: input tensor data.
+    Returns:
+      forwarded data.
+    """
     if inputs.is_cuda and self.ngpu > 1:
       outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
     else:
@@ -98,6 +106,8 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
+  """ discriminate model
+  """
   def __init__(self, ngpu):
     super(Discriminator, self).__init__()
     self.ngpu = ngpu
@@ -110,6 +120,12 @@ class Discriminator(nn.Module):
     )
 
   def forward(self, inputs):
+    """ forward layer
+    Args:
+      inputs: input tensor data.
+    Returns:
+      forwarded data.
+    """
     if inputs.is_cuda and self.ngpu > 1:
       outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
     else:
@@ -233,7 +249,9 @@ def train():
     torch.save(netD.state_dict(), f"{opt.out_folder}/netD_epoch_{epoch + 1:03d}.pth")
 
 
-def test():
+def generate():
+  """ random generate fake image.
+  """
   ################################################
   #               load model
   ################################################
@@ -250,7 +268,7 @@ def test():
 if __name__ == '__main__':
   if opt.phase == 'train':
     train()
-  elif opt.phase == 'test':
-    test()
+  elif opt.phase == 'generate':
+    generate()
   else:
     print(opt)

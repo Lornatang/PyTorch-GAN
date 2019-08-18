@@ -224,7 +224,7 @@ def train():
       real_label = torch.full((batch_size,), 1, device=device)
       fake_label = torch.full((batch_size,), 0, device=device)
       # Sample noise as generator input
-      noise = torch.randn(batch_size, nz, 1, 1, device=device)
+      noise = torch.randn(batch_size, nz, device=device)
 
       ##############################################
       # (1) Update G network: maximize log(D(G(z)))

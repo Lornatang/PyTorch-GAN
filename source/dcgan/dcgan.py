@@ -238,7 +238,6 @@ def train():
   print(f"Epochs: {opt.n_epochs}")
   print(f"Noise size: {opt.nz}")
   print("########################################")
-  print(f"loading pretrain model successful!\n")
   print("Starting trainning!")
   for epoch in range(opt.n_epochs):
     for i, data in enumerate(dataloader):

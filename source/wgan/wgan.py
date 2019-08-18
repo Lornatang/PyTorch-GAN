@@ -239,19 +239,25 @@ def train():
   print("Starting trainning!")
   for epoch in range(opt.n_epochs):
     for i, data in enumerate(dataloader):
-      ##############################################
-      # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-      ##############################################
       # get data
-      netD.zero_grad()
       real_imgs = data[0].to(device)
       batch_size = real_imgs.size(0)
 
+      # Sample noise as generator input
       noise = torch.randn(batch_size, nz, 1, 1, device=device)
 
-      # train Discriminator
+      ##############################################
+      # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+      ##############################################
+
+      optimizerD.zero_grad()
+
+      # Generate a batch of images
       fake_imgs = netG(noise).detach()
+
+      # Adversarial loss
       loss_D = -torch.mean(netD(real_imgs)) + torch.mean(netD(fake_imgs))
+
       loss_D.backward()
       optimizerD.step()
 
@@ -263,11 +269,17 @@ def train():
       # (2) Update G network: maximize log(D(G(z)))
       ##############################################
       if i % opt.n_critic == 0:
-        netG.zero_grad()
-        output = netG(noise)
-        loss_G = -torch.mean(netD(output))
+        optimizerG.zero_grad()
+
+        # Generate a batch of images
+        fake_imgs = netG(noise)
+
+        # Adversarial loss
+        loss_G = -torch.mean(netD(fake_imgs))
+
         loss_G.backward()
         optimizerG.step()
+
         print(f"Epoch->[{epoch + 1:03d}/{opt.n_epochs:03d}] "
               f"Progress->{i / len(dataloader) * 100:4.2f}% "
               f"Loss_D: {loss_D.item():.4f} "

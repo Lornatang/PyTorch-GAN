@@ -209,27 +209,35 @@ def train():
       # real data label is 1, fake data label is 0.
       real_label = torch.full((batch_size,), 1, device=device)
       fake_label = torch.full((batch_size,), 0, device=device)
-      noise = torch.randn(batch_size, nz, device=device)
+      # Sample noise as generator input
+      noise = torch.randn(batch_size, nz, 1, 1, device=device)
 
       ##############################################
       # (1) Update G network: maximize log(D(G(z)))
       ##############################################
+
       optimizerG.zero_grad()
+
+      # Generate a batch of images
       fake_imgs = netG(noise)
-      fake_output = netD(fake_imgs)
-      loss_G = criterion(fake_output, real_label)
+
+      # Loss measures generator's ability to fool the discriminator
+      loss_G = criterion(netD(fake_imgs), real_label)
+
       loss_G.backward()
       optimizerG.step()
 
       ##############################################
       # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
       ##############################################
+
       optimizerD.zero_grad()
-      real_output = netD(real_imgs)
-      fake_output = netD(fake_imgs.detach())
-      real_loss = criterion(real_output, real_label)
-      fake_loss = criterion(fake_output, fake_label)
+
+      # Measure discriminator's ability to classify real from generated samples
+      real_loss = criterion(netD(real_imgs), real_label)
+      fake_loss = criterion(netD(fake_imgs.detach()), fake_label)
       loss_D = (real_loss + fake_loss) / 2
+
       loss_D.backward()
       optimizerD.step()
 

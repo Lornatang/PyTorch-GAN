@@ -26,14 +26,17 @@ import random
 
 import IPython
 import imageio
+import numpy as np
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
-import torch.optim as optim
 import torch.utils.data
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from IPython import display
+from torch import autograd
+from torch.autograd import Variable
+from torch.optim.adam import Adam
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
@@ -44,9 +47,11 @@ parser.add_argument('--nz', type=int, default=100, help='size of the latent z ve
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs to train for')
-parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
+parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
 parser.add_argument('--beta2', type=float, default=0.999, help='beta2 for adam. default=0.999')
+parser.add_argument("--n_critic", type=int, default=5, help='number of training steps for discriminator per iter')
+parser.add_argument("--clip_value", type=float, default=0.01, help='lower and upper clip value for disc. weights')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
@@ -178,7 +183,32 @@ class Discriminator(nn.Module):
     return outputs.view(-1, 1).squeeze(1)
 
 
+def compute_gradient_penalty(D, real_samples, fake_samples):
+  """Calculates the gradient penalty loss for WGAN GP"""
+  # Random weight term for interpolation between real and fake samples
+  alpha = torch.tensor(np.random.random((real_samples.size(0), 1, 1, 1)))
+  # Get random interpolation between real and fake samples
+  interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_()
+  d_interpolates = D(interpolates)
+  fake = Variable(torch.tensor(real_samples.shape[0], 1).fill_(1.0), requires_grad=False)
+  # Get gradient w.r.t. interpolates
+  gradients = autograd.grad(
+    outputs=d_interpolates,
+    inputs=interpolates,
+    grad_outputs=fake,
+    create_graph=True,
+    retain_graph=True,
+    only_inputs=True,
+  )[0]
+  gradients = gradients.view(gradients.size(0), -1)
+  gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+  return gradient_penalty
+
+
 fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
+
+# Loss weight for gradient penalty
+lambda_gp = 10
 
 
 def train():
@@ -196,7 +226,7 @@ def train():
                               transform=transforms.Compose([
                                 transforms.Resize(opt.image_size),
                                 transforms.ToTensor(),
-                                transforms.Normalize([0.5], [0.5]),
+                                transforms.Normalize((0.5,), (0.5,)),
                               ]))
 
   assert dataset
@@ -217,15 +247,10 @@ def train():
   print(netD)
 
   ################################################
-  #           Binary Cross Entropy
+  #            Use RMSprop optimizer
   ################################################
-  criterion = nn.BCELoss()
-
-  ################################################
-  #            Use Adam optimizer
-  ################################################
-  optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
-  optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+  optimizerD = Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+  optimizerG = Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
 
   ################################################
   #               print args
@@ -243,48 +268,52 @@ def train():
   for epoch in range(opt.n_epochs):
     for i, data in enumerate(dataloader):
       # get data
+      netD.zero_grad()
       real_imgs = data[0].to(device)
       batch_size = real_imgs.size(0)
 
-      # real data label is 1, fake data label is 0.
-      real_label = torch.full((batch_size,), 1, device=device)
-      fake_label = torch.full((batch_size,), 0, device=device)
+      ##############################################
+      # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+      ##############################################
+
       # Sample noise as generator input
       noise = torch.randn(batch_size, nz, 1, 1, device=device)
-
-      ##############################################
-      # (1) Update G network: maximize log(D(G(z)))
-      ##############################################
-
-      optimizerG.zero_grad()
 
       # Generate a batch of images
       fake_imgs = netG(noise)
 
-      # Loss measures generator's ability to fool the discriminator
-      loss_G = criterion(netD(fake_imgs), real_label)
+      # Real images
+      real_output = netD(real_imgs)
+      # Fake images
+      fake_output = netD(fake_imgs)
 
-      loss_G.backward()
-      optimizerG.step()
-
-      ##############################################
-      # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-      ##############################################
-
-      optimizerD.zero_grad()
-
-      # Measure discriminator's ability to classify real from generated samples
-      real_loss = criterion(netD(real_imgs), real_label)
-      fake_loss = criterion(netD(fake_imgs.detach()), fake_label)
-      loss_D = (real_loss + fake_loss) / 2
+      # Gradient penalty
+      gradient_penalty = compute_gradient_penalty(netD, real_imgs.data, fake_imgs.data)
+      # Adversarial loss
+      loss_D = -torch.mean(real_output) + torch.mean(fake_output) + lambda_gp * gradient_penalty
 
       loss_D.backward()
       optimizerD.step()
 
-      print(f"Epoch->[{epoch + 1:03d}/{opt.n_epochs:03d}] "
-            f"Progress->{i / len(dataloader) * 100:4.2f}% "
-            f"Loss_D: {loss_D.item():.4f} "
-            f"Loss_G: {loss_G.item():.4f}", end="\r")
+      optimizerG.zero_grad()
+
+      ##############################################
+      # (2) Update G network: maximize log(D(G(z)))
+      ##############################################
+      if i % opt.n_critic == 0:
+        # Generate a batch of images
+        fake_imgs = netG(noise)
+        # train fake image
+        fake_output = netD(fake_imgs)
+        loss_G = -torch.mean(netD(fake_output))
+
+        loss_G.backward()
+        optimizerG.step()
+
+        print(f"Epoch->[{epoch + 1:03d}/{opt.n_epochs:03d}] "
+              f"Progress->{i / len(dataloader) * 100:4.2f}% "
+              f"Loss_D: {loss_D.item():.4f} "
+              f"Loss_G: {loss_G.item():.4f} ", end="\r")
 
       if i % 100 == 0:
         vutils.save_image(real_imgs, f"{opt.out_images}/real_samples.png", normalize=True)
@@ -340,7 +369,7 @@ def create_gif(file_name):
 if __name__ == '__main__':
   if opt.phase == 'train':
     train()
-    create_gif("dcgan.gif")
+    create_gif("wgan_gp.gif")
   elif opt.phase == 'generate':
     generate()
   else:

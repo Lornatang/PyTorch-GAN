@@ -85,11 +85,26 @@ class Generator(nn.Module):
     super(Generator, self).__init__()
     self.ngpu = ngpu
 
+    def block(in_features, out_features, normalize=True):
+      """ simple layer struct.
+      Args:
+        in_features: input feature.
+        out_features: output feature.
+        normalize: is normalize.
+      Returns:
+        new layer.
+      """
+      layers = [nn.Linear(in_features, out_features)]
+      if normalize:
+        layers.append(nn.BatchNorm1d(out_features, 0.8))
+      layers.append(nn.LeakyReLU(0.2, inplace=True))
+      return layers
+
     self.main = nn.Sequential(
-      nn.Linear(nz, 128),
-      nn.Linear(128, 256),
-      nn.Linear(256, 512),
-      nn.Linear(512, 1024),
+      *block(nz, 128, normalize=False),
+      *block(128, 256),
+      *block(256, 512),
+      *block(512, 1024),
       nn.Linear(1024, 784),
       nn.Tanh()
     )
@@ -130,10 +145,10 @@ class Discriminator(nn.Module):
     Returns:
       forwarded data.
     """
+    inputs = inputs.view(inputs.size(0), -1)
     if inputs.is_cuda and self.ngpu > 1:
       outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
     else:
-      inputs = inputs.view(inputs.size(0), -1)
       outputs = self.main(inputs)
     return outputs
 

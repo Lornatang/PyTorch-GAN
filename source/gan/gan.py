@@ -217,8 +217,8 @@ def train():
   for epoch in range(opt.n_epochs):
     for i, data in enumerate(dataloader):
       # get data
-      real_imgs = data[0].to(device)
-      batch_size = real_imgs.size(0)
+      real_data = data[0].to(device)
+      batch_size = real_data.size(0)
 
       # real data label is 1, fake data label is 0.
       real_label = torch.full((batch_size,), 1, device=device)
@@ -233,10 +233,10 @@ def train():
       optimizerG.zero_grad()
 
       # Generate a batch of images
-      fake_imgs = netG(noise)
+      fake_data = netG(noise)
 
       # Loss measures generator's ability to fool the discriminator
-      loss_G = criterion(netD(fake_imgs), real_label)
+      loss_G = criterion(netD(fake_data), real_label)
 
       loss_G.backward()
       optimizerG.step()
@@ -248,8 +248,8 @@ def train():
       optimizerD.zero_grad()
 
       # Measure discriminator's ability to classify real from generated samples
-      real_loss = criterion(netD(real_imgs), real_label)
-      fake_loss = criterion(netD(fake_imgs.detach()), fake_label)
+      real_loss = criterion(netD(real_data), real_label)
+      fake_loss = criterion(netD(fake_data.detach()), fake_label)
       loss_D = (real_loss + fake_loss) / 2
 
       loss_D.backward()
@@ -261,7 +261,7 @@ def train():
             f"Loss_G: {loss_G.item():.4f}", end="\r")
 
       if i % 100 == 0:
-        vutils.save_image(real_imgs, f"{opt.out_images}/real_samples.png", normalize=True)
+        vutils.save_image(real_data, f"{opt.out_images}/real_samples.png", normalize=True)
         with torch.no_grad():
           fake = netG(fixed_noise).detach().cpu()
         vutils.save_image(fake, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)

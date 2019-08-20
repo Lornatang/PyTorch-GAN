@@ -283,7 +283,7 @@ def train():
             f"Loss_D: {loss_D.item():0.4f} "
             f"Loss_G: {loss_G.item():0.4f}", end="\r")
 
-      if i % 100 == 0:
+      if i % 400 == 0:
         vutils.save_image(real_imgs, f"{opt.out_images}/real_samples.png", normalize=True)
         with torch.no_grad():
           fake = netG(fixed_noise).detach().cpu()

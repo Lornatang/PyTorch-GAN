@@ -38,7 +38,7 @@ from torchvision import utils as vutils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
-parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
+parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
 parser.add_argument('--channels', type=int, default=3, help='image rgb or gray image')

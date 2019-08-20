@@ -26,20 +26,22 @@ import random
 
 import IPython
 import imageio
-import torch.backends.cudnn as cudnn
-import torch.nn as nn
-import torch.optim as optim
-import torch.utils.data
-import torchvision.datasets as dset
-import torchvision.transforms as transforms
-import torchvision.utils as vutils
+import torch
+import torch.utils.data.dataloader
 from IPython import display
+from torch import nn
+from torch import optim
+from torch.backends import cudnn as cudnn
+from torchvision import datasets as dset
+from torchvision import transforms
+from torchvision import utils as vutils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
-parser.add_argument('--batch_size', type=int, default=64, help='inputs batch size')
-parser.add_argument('--image_size', type=int, default=64, help='the height / width of the inputs image to network')
+parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
+parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
+parser.add_argument('--channels', type=int, default=3, help='image rgb or gray image')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
@@ -100,25 +102,21 @@ class Generator(nn.Module):
     self.ngpu = gpus
     self.main = nn.Sequential(
       # inputs is Z, going into a convolution
-      nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
-      nn.BatchNorm2d(ngf * 8),
-      nn.ReLU(True),
-      # state size. (ngf*8) x 4 x 4
-      nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+      nn.ConvTranspose2d(nz, ngf * 4, 4, 2, 0, bias=False),
       nn.BatchNorm2d(ngf * 4),
       nn.ReLU(True),
-      # state size. (ngf*4) x 8 x 8
+      # state size. (ngf*4) x 4 x 4
       nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
       nn.BatchNorm2d(ngf * 2),
       nn.ReLU(True),
-      # state size. (ngf*2) x 16 x 16
+      # state size. (ngf*2) x 8 x 8
       nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
       nn.BatchNorm2d(ngf),
       nn.ReLU(True),
-      # state size. (ngf) x 32 x 32
-      nn.ConvTranspose2d(ngf, 1, 4, 2, 1, bias=False),
+      # state size. (ngf) x 16 x 16
+      nn.ConvTranspose2d(ngf, opt.channels, 4, 2, 1, bias=False),
       nn.Tanh()
-      # state size. (nc) x 64 x 64
+      # state size. (nc) x 32 x 32
     )
 
   def forward(self, inputs):
@@ -143,23 +141,19 @@ class Discriminator(nn.Module):
     super(Discriminator, self).__init__()
     self.ngpu = gpus
     self.main = nn.Sequential(
-      # inputs is (nc) x 64 x 64
-      nn.Conv2d(1, ndf, 4, 2, 1, bias=False),
+      # inputs is (nc) x 32 x 32
+      nn.Conv2d(opt.channels, ndf, 4, 2, 1, bias=False),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf) x 32 x 32
+      # state size. (ndf) x 16 x 16
       nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
       nn.BatchNorm2d(ndf * 2),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf*2) x 16 x 16
+      # state size. (ndf*2) x 8 x 8
       nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
       nn.BatchNorm2d(ndf * 4),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf*4) x 8 x 8
-      nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ndf * 8),
-      nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf*8) x 4 x 4
-      nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+      # state size. (ndf*4) x 4 x 4
+      nn.Conv2d(ndf * 4, 1, 4, 1, 0, bias=False),
       nn.Sigmoid()
     )
 
@@ -191,13 +185,14 @@ def train():
   ################################################
   #               load train dataset
   ################################################
-  dataset = dset.FashionMNIST(root=opt.dataroot,
-                              download=True,
-                              transform=transforms.Compose([
-                                transforms.Resize(opt.image_size),
-                                transforms.ToTensor(),
-                                transforms.Normalize([0.5], [0.5]),
-                              ]))
+  dataset = dset.CIFAR10(root=opt.dataroot,
+                         download=True,
+                         transform=transforms.Compose([
+                           transforms.Resize(opt.image_size),
+                           transforms.RandomCrop(opt.image_size),
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                         ]))
 
   assert dataset
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,
@@ -246,10 +241,10 @@ def train():
       batch_size = real_imgs.size(0)
 
       # real data label is 1, fake data label is 0.
-      real_label = torch.full((batch_size,), 1, device=device)
-      fake_label = torch.full((batch_size,), 0, device=device)
+      valid = torch.full((batch_size,), 1, device=device)
+      fake = torch.full((batch_size,), 0, device=device)
       # Sample noise as generator input
-      noise = torch.randn(batch_size, nz, 1, 1, device=device)
+      z = torch.randn(batch_size, nz, 1, 1, device=device)
 
       ##############################################
       # (1) Update G network: maximize log(D(G(z)))
@@ -258,10 +253,11 @@ def train():
       optimizerG.zero_grad()
 
       # Generate a batch of images
-      fake_imgs = netG(noise)
+      gen_imgs = netG(z)
 
       # Loss measures generator's ability to fool the discriminator
-      loss_G = criterion(netD(fake_imgs), real_label)
+      fake_output = netD(gen_imgs)
+      loss_G = criterion(fake_output, valid)
 
       loss_G.backward()
       optimizerG.step()
@@ -273,8 +269,10 @@ def train():
       optimizerD.zero_grad()
 
       # Measure discriminator's ability to classify real from generated samples
-      real_loss = criterion(netD(real_imgs), real_label)
-      fake_loss = criterion(netD(fake_imgs.detach()), fake_label)
+      real_output = netD(real_imgs)
+      fake_output = netD(gen_imgs.detach())
+      real_loss = criterion(real_output, valid)
+      fake_loss = criterion(fake_output, fake)
       loss_D = (real_loss + fake_loss) / 2
 
       loss_D.backward()
@@ -282,8 +280,8 @@ def train():
 
       print(f"Epoch->[{epoch + 1:03d}/{opt.n_epochs:03d}] "
             f"Progress->{i / len(dataloader) * 100:4.2f}% "
-            f"Loss_D: {loss_D.item():.4f} "
-            f"Loss_G: {loss_G.item():.4f}", end="\r")
+            f"Loss_D: {loss_D.item():0.4f} "
+            f"Loss_G: {loss_G.item():0.4f}", end="\r")
 
       if i % 100 == 0:
         vutils.save_image(real_imgs, f"{opt.out_images}/real_samples.png", normalize=True)
@@ -291,7 +289,7 @@ def train():
           fake = netG(fixed_noise).detach().cpu()
         vutils.save_image(fake, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)
 
-    # do checkpointing
+    # save model
     torch.save(netG.state_dict(), f"{opt.checkpoints_dir}/netG_epoch_{epoch + 1:03d}.pth")
     torch.save(netD.state_dict(), f"{opt.checkpoints_dir}/netD_epoch_{epoch + 1:03d}.pth")
 
@@ -310,6 +308,7 @@ def generate():
   with torch.no_grad():
     fake = netG(one_noise).detach().cpu()
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
+  print(f"Generate image successful!")
 
 
 def create_gif(file_name):

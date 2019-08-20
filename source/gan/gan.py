@@ -26,14 +26,15 @@ import random
 
 import IPython
 import imageio
-import torch.backends.cudnn as cudnn
-import torch.nn as nn
-import torch.optim as optim
-import torch.utils.data
-import torchvision.datasets as dset
-import torchvision.transforms as transforms
-import torchvision.utils as vutils
+import torch
+import torch.utils.data.dataloader
 from IPython import display
+from torch import nn
+from torch import optim
+from torch.backends import cudnn as cudnn
+from torchvision import datasets as dset
+from torchvision import transforms
+from torchvision import utils as vutils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
@@ -133,7 +134,9 @@ class Discriminator(nn.Module):
 
     self.main = nn.Sequential(
       nn.Linear(784, 512),
+      nn.LeakyReLU(0.2, inplace=True),
       nn.Linear(512, 256),
+      nn.LeakyReLU(0.2, inplace=True),
       nn.Linear(256, 1),
       nn.Sigmoid()
     )
@@ -199,8 +202,8 @@ def train():
   ################################################
   #            Use Adam optimizer
   ################################################
-  optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
-  optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+  optimizer_D = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
+  optimizer_G = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
 
   ################################################
   #               print args
@@ -213,47 +216,51 @@ def train():
   print(f"Epochs: {opt.n_epochs}")
   print(f"Noise size: {opt.nz}")
   print("########################################")
-  print("Starting trainning!")
+  print("Starting training!")
   for epoch in range(opt.n_epochs):
     for i, data in enumerate(dataloader):
-      # get data
-      real_data = data[0].to(device)
-      batch_size = real_data.size(0)
+      # get batch size data
+      real_imgs = data[0].to(device)
+      batch_size = real_imgs.size(0)
 
       # real data label is 1, fake data label is 0.
-      real_label = torch.full((batch_size,), 1, device=device)
-      fake_label = torch.full((batch_size,), 0, device=device)
+      valid = torch.full((batch_size,), 1, device=device)
+      fake = torch.full((batch_size,), 0, device=device)
       # Sample noise as generator input
-      noise = torch.randn(batch_size, nz, device=device)
+      z = torch.randn(batch_size, nz, device=device)
 
       ##############################################
       # (1) Update G network: maximize log(D(G(z)))
       ##############################################
 
-      optimizerG.zero_grad()
+      optimizer_G.zero_grad()
 
       # Generate a batch of images
-      fake_data = netG(noise)
+      gen_imgs = netG(z)
 
       # Loss measures generator's ability to fool the discriminator
-      loss_G = criterion(netD(fake_data), real_label)
+      fake_output = netD(gen_imgs)
+      loss_G = criterion(fake_output, valid)
 
       loss_G.backward()
-      optimizerG.step()
+      optimizer_G.step()
 
       ##############################################
       # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
       ##############################################
 
-      optimizerD.zero_grad()
+      optimizer_D.zero_grad()
 
       # Measure discriminator's ability to classify real from generated samples
-      real_loss = criterion(netD(real_data), real_label)
-      fake_loss = criterion(netD(fake_data.detach()), fake_label)
+      real_output = netD(real_imgs)
+      fake_output = netD(gen_imgs.detach())
+
+      real_loss = criterion(real_output, valid)
+      fake_loss = criterion(fake_output, fake)
       loss_D = (real_loss + fake_loss) / 2
 
       loss_D.backward()
-      optimizerD.step()
+      optimizer_D.step()
 
       print(f"Epoch->[{epoch + 1:03d}/{opt.n_epochs:03d}] "
             f"Progress->{i / len(dataloader) * 100:4.2f}% "
@@ -261,11 +268,12 @@ def train():
             f"Loss_G: {loss_G.item():.4f}", end="\r")
 
       if i % 100 == 0:
-        vutils.save_image(real_data, f"{opt.out_images}/real_samples.png", normalize=True)
-        fake = netG(fixed_noise).detach().cpu()
-        vutils.save_image(fake, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)
+        vutils.save_image(real_imgs, f"{opt.out_images}/real_samples.png", normalize=True)
+        with torch.no_grad():
+          generate_image = netG(fixed_noise).detach().cpu()
+        vutils.save_image(generate_image, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)
 
-    # do checkpointing
+    # save model
     torch.save(netG.state_dict(), f"{opt.checkpoints_dir}/netG_epoch_{epoch + 1:03d}.pth")
     torch.save(netD.state_dict(), f"{opt.checkpoints_dir}/netD_epoch_{epoch + 1:03d}.pth")
 
@@ -281,7 +289,8 @@ def generate():
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   print(f"Load model successful!")
   one_noise = torch.randn(1, nz, device=device)
-  fake = netG(one_noise).detach().cpu()
+  with torch.no_grad():
+    fake = netG(one_noise).detach().cpu()
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
 
 

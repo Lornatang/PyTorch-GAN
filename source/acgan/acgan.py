@@ -274,7 +274,7 @@ def train():
       fake = torch.full((batch_size,), 0, device=device)
       # Sample noise as generator input
       noise = torch.randn(batch_size, nz, 1, 1, device=device)
-      fake_labels = torch.autograd.Variable(np.random.randint(0, opt.n_classes, batch_size))
+      fake_labels = torch.tensor(np.random.randint(0, opt.n_classes, batch_size))
 
       ##############################################
       # (1) Update G network: maximize log(D(G(z)))
@@ -300,7 +300,7 @@ def train():
 
       # Loss for real images
       real_pred, real_aux = netD(real_data)
-      d_real_loss = (adversarial_loss(real_pred, valid) + auxiliary_loss(real_aux, labels)) / 2
+      d_real_loss = (adversarial_loss(real_pred, valid) + auxiliary_loss(real_aux, real_labels)) / 2
 
       # Loss for fake images
       fake_pred, fake_aux = netD(fake_data.detach())

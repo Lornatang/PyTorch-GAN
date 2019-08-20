@@ -262,8 +262,7 @@ def train():
 
       if i % 100 == 0:
         vutils.save_image(real_data, f"{opt.out_images}/real_samples.png", normalize=True)
-        with torch.no_grad():
-          fake = netG(fixed_noise).detach().cpu()
+        fake = netG(fixed_noise).detach().cpu()
         vutils.save_image(fake, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)
 
     # do checkpointing
@@ -282,8 +281,7 @@ def generate():
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   print(f"Load model successful!")
   one_noise = torch.randn(1, nz, device=device)
-  with torch.no_grad():
-    fake = netG(one_noise).detach().cpu()
+  fake = netG(one_noise).detach().cpu()
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
 
 

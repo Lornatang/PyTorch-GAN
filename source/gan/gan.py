@@ -54,11 +54,13 @@ parser.add_argument('--out_images', default='./imgs', help='folder to output ima
 parser.add_argument('--checkpoints_dir', default='./checkpoints', help='folder to output model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--phase', type=str, default='train', help='model mode. default=`train`')
+parser.add_argument('--sample_size', type=int, default=1000, help='generate 1000 pic use classifier.')
 
 opt = parser.parse_args()
 
 try:
   os.makedirs(opt.out_images)
+  os.makedirs("./unknown")
 except OSError:
   pass
 
@@ -188,11 +190,13 @@ def train():
   if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   print(netG)
+  netG.train()
 
   netD = Discriminator(ngpu).to(device)
   if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD, map_location=lambda storage, loc: storage))
   print(netD)
+  netD.train()
 
   ################################################
   #           Binary Cross Entropy
@@ -287,11 +291,14 @@ def generate():
   print(f"Load model...\n")
   netG = Generator(ngpu).to(device)
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
+  netG.eval()
   print(f"Load model successful!")
-  one_noise = torch.randn(1, nz, device=device)
   with torch.no_grad():
-    fake = netG(one_noise).detach().cpu()
-  vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
+    for i in range(opt.sample_size):
+      z = torch.randn(1, nz, device=device)
+      fake = netG(z).detach().cpu()
+      vutils.save_image(fake, f"unknown/fake_{i:04d}.png", normalize=True)
+  print(f"1000 images have been generated!")
 
 
 def create_gif(file_name):

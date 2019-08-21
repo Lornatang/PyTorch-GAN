@@ -41,7 +41,7 @@ parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
-parser.add_argument('--channels', type=int, default=3, help='image rgb or gray image')
+parser.add_argument('--channels', type=int, default=1, help='image rgb or gray image')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
@@ -102,7 +102,7 @@ class Generator(nn.Module):
     self.ngpu = gpus
     self.main = nn.Sequential(
       # inputs is Z, going into a convolution
-      nn.ConvTranspose2d(nz, ngf * 4, 4, 2, 0, bias=False),
+      nn.ConvTranspose2d(nz, ngf * 4, 4, 1, 0, bias=False),
       nn.BatchNorm2d(ngf * 4),
       nn.ReLU(True),
       # state size. (ngf*4) x 4 x 4
@@ -185,14 +185,14 @@ def train():
   ################################################
   #               load train dataset
   ################################################
-  dataset = dset.CIFAR10(root=opt.dataroot,
-                         download=True,
-                         transform=transforms.Compose([
-                           transforms.Resize(opt.image_size),
-                           transforms.RandomCrop(opt.image_size),
-                           transforms.ToTensor(),
-                           transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                         ]))
+  dataset = dset.FashionMNIST(root=opt.dataroot,
+                              download=True,
+                              transform=transforms.Compose([
+                                transforms.Resize(opt.image_size),
+                                transforms.RandomCrop(opt.image_size),
+                                transforms.ToTensor(),
+                                transforms.Normalize([0.5], [0.5])
+                              ]))
 
   assert dataset
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,

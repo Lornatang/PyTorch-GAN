@@ -132,3 +132,4 @@ dmypy.json
 # image file
 *.png
 source/gan/images
+*.pth

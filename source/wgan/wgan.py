@@ -153,7 +153,7 @@ class Discriminator(nn.Module):
     return output
 
 
-fixed_noise = torch.randn(opt.batch_size, nz, device=device)
+fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
 
 
 def train():
@@ -291,7 +291,7 @@ def generate():
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   netG.to(device)
   print(f"Load model successful!")
-  one_noise = torch.randn(1, nz, device=device)
+  one_noise = torch.randn(1, nz, 1, 1, device=device)
   with torch.no_grad():
     fake = netG(one_noise).detach().cpu()
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)

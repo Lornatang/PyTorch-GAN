@@ -289,7 +289,11 @@ def generate():
   #               load model
   ################################################
   print(f"Load model...\n")
-  netG = Generator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netG = torch.nn.DataParallel(Generator(ngpu))
+  else:
+    netG = Generator(ngpu)
+  netG.to(device)
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   netG.eval()
   print(f"Load model successful!")

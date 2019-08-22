@@ -55,11 +55,13 @@ parser.add_argument('--out_images', default='./imgs', help='folder to output ima
 parser.add_argument('--checkpoints_dir', default='./checkpoints', help='folder to output model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--phase', type=str, default='train', help='model mode. default=`train`')
+parser.add_argument('--sample_size', type=int, default=1000, help='generate 1000 pic use classifier.')
 
 opt = parser.parse_args()
 
 try:
   os.makedirs(opt.out_images)
+  os.makedirs("./unknown")
 except OSError:
   pass
 

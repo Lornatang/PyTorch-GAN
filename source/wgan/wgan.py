@@ -166,13 +166,13 @@ def train():
   ################################################
   #               load train dataset
   ################################################
-  dataset = dset.FashionMNIST(root=opt.dataroot,
-                              download=True,
-                              transform=transforms.Compose([
-                                transforms.Resize(opt.image_size),
-                                transforms.ToTensor(),
-                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                              ]))
+  dataset = dset.CIFAR10(root=opt.dataroot,
+                         download=True,
+                         transform=transforms.Compose([
+                           transforms.Resize(opt.image_size),
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                         ]))
 
   assert dataset
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,

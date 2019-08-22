@@ -308,7 +308,7 @@ def generate():
   with torch.no_grad():
     fake = netG(one_noise).detach().cpu()
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
-  print(f"Generate image successful!")
+  print(f"Generate 1000 image successful!")
 
 
 def create_gif(file_name):

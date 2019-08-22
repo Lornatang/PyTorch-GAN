@@ -200,14 +200,25 @@ def train():
   ################################################
   #               load model
   ################################################
-  netG = Generator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netG = torch.nn.DataParallel(Generator(ngpu))
+  else:
+    netG = Generator(ngpu)
   if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
-  print(netG)
 
-  netD = Discriminator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netD = torch.nn.DataParallel(Discriminator(ngpu))
+  else:
+    netD = Discriminator(ngpu)
   if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD, map_location=lambda storage, loc: storage))
+
+  netG.train()
+  netG = netG.to(device)
+  netD.train()
+  netD = netD.to(device)
+  print(netG)
   print(netD)
 
   ################################################

@@ -38,7 +38,7 @@ from torch.optim.rmsprop import RMSprop
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
-parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
+parser.add_argument('--batch_size', type=int, default=64, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs to train for')

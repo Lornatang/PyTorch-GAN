@@ -307,7 +307,7 @@ def generate():
   one_noise = torch.randn(1, nz, 1, 1, device=device)
   with torch.no_grad():
     fake = netG(one_noise).detach().cpu()
-  vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
+  vutils.save_image(fake, f"unknown/fake.png", normalize=True)
   print(f"Generate 1000 image successful!")
 
 

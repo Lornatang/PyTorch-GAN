@@ -63,6 +63,7 @@ opt = parser.parse_args()
 
 try:
   os.makedirs(opt.out_images)
+  os.makedirs("./unknown")
 except OSError:
   pass
 

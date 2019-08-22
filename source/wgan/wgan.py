@@ -40,7 +40,7 @@ parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
 parser.add_argument('--batch_size', type=int, default=256, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
-parser.add_argument('--nz', type=int, default=128, help='size of the latent z vector')
+parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.00005, help='learning rate, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -85,25 +85,30 @@ class Generator(nn.Module):
   def __init__(self, ngpu):
     super(Generator, self).__init__()
     self.ngpu = ngpu
-    self.preprocess = nn.Sequential(
-      nn.Linear(128, 4 * 4 * 4 * nz),
-      nn.BatchNorm2d(4 * 4 * 4 * nz),
-      nn.ReLU(True),
-    )
 
-    self.block1 = nn.Sequential(
-      nn.ConvTranspose2d(4 * nz, 2 * nz, 2, stride=2),
-      nn.BatchNorm2d(2 * nz),
-      nn.ReLU(True),
-    )
-    self.block2 = nn.Sequential(
-      nn.ConvTranspose2d(2 * nz, nz, 2, stride=2),
-      nn.BatchNorm2d(nz),
-      nn.ReLU(True),
-    )
-    self.deconv_out = nn.ConvTranspose2d(nz, 3, 2, stride=2)
+    def block(in_features, out_features, normalize=True):
+      """ simple layer struct.
+      Args:
+        in_features: input feature.
+        out_features: output feature.
+        normalize: is normalize.
+      Returns:
+        new layer.
+      """
+      layers = [nn.Linear(in_features, out_features)]
+      if normalize:
+        layers.append(nn.BatchNorm1d(out_features, 0.8))
+      layers.append(nn.LeakyReLU(0.2, inplace=True))
+      return layers
 
-    self.tanh = nn.Tanh()
+    self.main = nn.Sequential(
+      *block(nz, 128, normalize=False),
+      *block(128, 256),
+      *block(256, 512),
+      *block(512, 1024),
+      nn.Linear(1024, 3072),
+      nn.Tanh()
+    )
 
   def forward(self, inputs):
     """ forward layer
@@ -112,13 +117,8 @@ class Generator(nn.Module):
     Returns:
       forwarded data.
     """
-    output = self.preprocess(inputs)
-    output = output.view(-1, 4 * nz, 4, 4)
-    output = self.block1(output)
-    output = self.block2(output)
-    output = self.deconv_out(output)
-    output = self.tanh(output)
-    return output.view(-1, 3, 32, 32)
+    outputs = self.main(inputs)
+    return outputs.view(outputs.size(0), 3, 32, 32)
 
 
 class Discriminator(nn.Module):
@@ -130,15 +130,13 @@ class Discriminator(nn.Module):
     self.ngpu = ngpu
 
     self.main = nn.Sequential(
-      nn.Conv2d(3, nz, 3, 2, padding=1),
-      nn.LeakyReLU(),
-      nn.Conv2d(nz, 2 * nz, 3, 2, padding=1),
-      nn.LeakyReLU(),
-      nn.Conv2d(2 * nz, 4 * nz, 3, 2, padding=1),
-      nn.LeakyReLU(),
+      nn.Linear(3072, 512),
+      nn.LeakyReLU(0.2, inplace=True),
+      nn.Linear(512, 256),
+      nn.LeakyReLU(0.2, inplace=True),
+      nn.Linear(256, 3),
+      nn.Sigmoid()
     )
-
-    self.linear = nn.Linear(4 * 4 * 4 * nz, 1)
 
   def forward(self, inputs):
     """ forward layer
@@ -147,13 +145,12 @@ class Discriminator(nn.Module):
     Returns:
       forwarded data.
     """
-    output = self.main(inputs)
-    output = output.view(-1, 4 * 4 * 4 * nz)
-    output = self.linear(output)
-    return output
+    inputs = inputs.view(inputs.size(0), -1)
+    outputs = self.main(inputs)
+    return outputs
 
 
-fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
+fixed_noise = torch.randn(opt.batch_size, nz, device=device)
 
 
 def train():
@@ -291,7 +288,7 @@ def generate():
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   netG.to(device)
   print(f"Load model successful!")
-  one_noise = torch.randn(1, nz, 1, 1, device=device)
+  one_noise = torch.randn(1, nz, device=device)
   with torch.no_grad():
     fake = netG(one_noise).detach().cpu()
   vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)

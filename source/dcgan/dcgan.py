@@ -307,7 +307,7 @@ def generate():
   print(f"Load model successful!")
   with torch.no_grad():
     for i in range(opt.sample_size):
-      z = torch.randn(1, nz, device=device)
+      z = torch.randn(1, nz, 1, 1, device=device)
       fake = netG(z).detach().cpu()
       vutils.save_image(fake, f"unknown/fake_{i:04d}.png", normalize=True)
   print(f"1000 images have been generated!")

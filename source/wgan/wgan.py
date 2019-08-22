@@ -285,13 +285,16 @@ def generate():
     netG = torch.nn.DataParallel(Generator(ngpu))
   else:
     netG = Generator(ngpu)
-  netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
   netG.to(device)
+  netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
+  netG.eval()
   print(f"Load model successful!")
-  one_noise = torch.randn(1, nz, device=device)
   with torch.no_grad():
-    fake = netG(one_noise).detach().cpu()
-  vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
+    for i in range(opt.sample_size):
+      z = torch.randn(1, nz, device=device)
+      fake = netG(z).detach().cpu()
+      vutils.save_image(fake, f"unknown/fake_{i:04d}.png", normalize=True)
+  print(f"1000 images have been generated!")
 
 
 def create_gif(file_name):

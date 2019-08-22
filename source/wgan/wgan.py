@@ -216,7 +216,9 @@ def train():
   if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD, map_location=lambda storage, loc: storage))
 
+  netG.train()
   netG = netG.to(device)
+  netD.train()
   netD = netD.to(device)
   print(netG)
   print(netD)

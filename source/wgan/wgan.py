@@ -41,6 +41,8 @@ parser.add_argument('--workers', type=int, help='number of data loading workers'
 parser.add_argument('--batch_size', type=int, default=64, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
+parser.add_argument('--ngf', type=int, default=64)
+parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.00005, help='learning rate, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -78,38 +80,45 @@ if torch.cuda.is_available() and not opt.cuda:
 device = torch.device("cuda:0" if opt.cuda else "cpu")
 ngpu = int(opt.ngpu)
 nz = int(opt.nz)
+ngf = int(opt.ngf)
+ndf = int(opt.ndf)
+
+
+def weights_init(m):
+  """ custom weights initialization called on netG and netD
+  """
+  classname = m.__class__.__name__
+  if classname.find('Conv') != -1:
+    m.weight.data.normal_(0.0, 0.02)
+  elif classname.find('BatchNorm') != -1:
+    m.weight.data.normal_(1.0, 0.02)
+    m.bias.data.fill_(0)
 
 
 class Generator(nn.Module):
   """ generate model
   """
 
-  def __init__(self, ngpu):
+  def __init__(self, gpus):
     super(Generator, self).__init__()
-    self.ngpu = ngpu
-
-    def block(in_features, out_features, normalize=True):
-      """ simple layer struct.
-      Args:
-        in_features: input feature.
-        out_features: output feature.
-        normalize: is normalize.
-      Returns:
-        new layer.
-      """
-      layers = [nn.Linear(in_features, out_features)]
-      if normalize:
-        layers.append(nn.BatchNorm1d(out_features, 0.8))
-      layers.append(nn.LeakyReLU(0.2, inplace=True))
-      return layers
-
+    self.ngpu = gpus
     self.main = nn.Sequential(
-      *block(nz, 128, normalize=False),
-      *block(128, 256),
-      *block(256, 512),
-      *block(512, 1024),
-      nn.Linear(1024, 3072),
+      # inputs is Z, going into a convolution
+      nn.ConvTranspose2d(nz, ngf * 4, 4, 1, 0, bias=False),
+      nn.BatchNorm2d(ngf * 4),
+      nn.ReLU(True),
+      # state size. (ngf*4) x 4 x 4
+      nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ngf * 2),
+      nn.ReLU(True),
+      # state size. (ngf*2) x 8 x 8
+      nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ngf),
+      nn.ReLU(True),
+      # state size. (ngf) x 16 x 16
+      nn.ConvTranspose2d(ngf, 3, 4, 2, 1, bias=False),
       nn.Tanh()
+      # state size. (nc) x 32 x 32
     )
 
   def forward(self, inputs):
@@ -119,24 +128,34 @@ class Generator(nn.Module):
     Returns:
       forwarded data.
     """
-    outputs = self.main(inputs)
-    return outputs.view(outputs.size(0), 3, 32, 32)
+    if inputs.is_cuda and self.ngpu > 1:
+      outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
+    else:
+      outputs = self.main(inputs)
+    return outputs
 
 
 class Discriminator(nn.Module):
   """ discriminate model
   """
 
-  def __init__(self, ngpu):
+  def __init__(self, gpus):
     super(Discriminator, self).__init__()
-    self.ngpu = ngpu
-
+    self.ngpu = gpus
     self.main = nn.Sequential(
-      nn.Linear(3072, 512),
+      # inputs is (nc) x 32 x 32
+      nn.Conv2d(3, ndf, 4, 2, 1, bias=False),
       nn.LeakyReLU(0.2, inplace=True),
-      nn.Linear(512, 256),
+      # state size. (ndf) x 16 x 16
+      nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 2),
       nn.LeakyReLU(0.2, inplace=True),
-      nn.Linear(256, 3),
+      # state size. (ndf*2) x 8 x 8
+      nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 4),
+      nn.LeakyReLU(0.2, inplace=True),
+      # state size. (ndf*4) x 4 x 4
+      nn.Conv2d(ndf * 4, 1, 4, 1, 0, bias=False),
       nn.Sigmoid()
     )
 
@@ -147,12 +166,15 @@ class Discriminator(nn.Module):
     Returns:
       forwarded data.
     """
-    inputs = inputs.view(inputs.size(0), -1)
-    outputs = self.main(inputs)
-    return outputs
+    if inputs.is_cuda and self.ngpu > 1:
+      outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
+    else:
+      outputs = self.main(inputs)
+
+    return outputs.view(-1, 1).squeeze(1)
 
 
-fixed_noise = torch.randn(opt.batch_size, nz, device=device)
+fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
 
 
 def train():
@@ -224,7 +246,7 @@ def train():
       batch_size = real_imgs.size(0)
 
       # Sample noise as generator input
-      noise = torch.randn(batch_size, nz, device=device)
+      noise = torch.randn(batch_size, nz, 1, 1, device=device)
 
       ##############################################
       # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -293,7 +315,7 @@ def generate():
   print(f"Load model successful!")
   with torch.no_grad():
     for i in range(opt.sample_size):
-      z = torch.randn(1, nz, device=device)
+      z = torch.randn(1, nz, 1, 1, device=device)
       fake = netG(z).detach().cpu()
       vutils.save_image(fake, f"unknown/fake_{i:04d}.png", normalize=True)
   print(f"1000 images have been generated!")

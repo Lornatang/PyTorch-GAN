@@ -300,12 +300,17 @@ def generate():
   #               load model
   ################################################
   print(f"Load model...\n")
-  netG = Generator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netG = torch.nn.DataParallel(Generator(ngpu))
+  else:
+    netG = Generator(ngpu)
+  netG.to(device)
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
+  netG.eval()
   print(f"Load model successful!")
   with torch.no_grad():
     for i in range(opt.sample_size):
-      z = torch.randn(1, nz, 1, 1, device=device)
+      z = torch.randn(1, nz, device=device)
       fake = netG(z).detach().cpu()
       vutils.save_image(fake, f"unknown/fake_{i:04d}.png", normalize=True)
   print(f"1000 images have been generated!")

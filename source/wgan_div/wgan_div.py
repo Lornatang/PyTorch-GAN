@@ -161,6 +161,7 @@ class Discriminator(nn.Module):
     outputs = self.main(inputs)
     return outputs
 
+
 fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
 
 
@@ -255,16 +256,16 @@ def train():
       # Compute W-div gradient penalty
       k = 2
       p = 6
-      real_grad_out = Variable(torch.tensor(real_imgs.size(0), 1).fill_(1.0), requires_grad=False)
+      real_grad_out = Variable(torch.FloatTensor(real_imgs.size(0), 1).fill_(1.0).to(device), requires_grad=False)
       real_grad = torch.autograd.grad(
         real_output, real_imgs, real_grad_out, create_graph=True, retain_graph=True, only_inputs=True
-      )[0]
+      )[0].to(device)
       real_grad_norm = real_grad.view(real_grad.size(0), -1).pow(2).sum(1) ** (p / 2)
 
-      fake_grad_out = Variable(torch.tensor(fake_imgs.size(0), 1).fill_(1.0), requires_grad=False)
+      fake_grad_out = Variable(torch.FloatTensor(fake_imgs.size(0), 1).fill_(1.0).to(device), requires_grad=False)
       fake_grad = torch.autograd.grad(
         fake_output, fake_imgs, fake_grad_out, create_graph=True, retain_graph=True, only_inputs=True
-      )[0]
+      )[0].to(device)
       fake_grad_norm = fake_grad.view(fake_grad.size(0), -1).pow(2).sum(1) ** (p / 2)
 
       div_gp = torch.mean(real_grad_norm + fake_grad_norm) * k / 2

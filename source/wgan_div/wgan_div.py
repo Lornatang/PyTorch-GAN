@@ -161,7 +161,6 @@ class Discriminator(nn.Module):
     outputs = self.main(inputs)
     return outputs
 
-
 fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
 
 

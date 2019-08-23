@@ -100,19 +100,19 @@ class Generator(nn.Module):
     self.ngpu = gpus
     self.main = nn.Sequential(
       # inputs is Z, going into a convolution
-      nn.ConvTranspose2d(nz, 1024, 4, 1, 0, bias=False),
-      nn.BatchNorm2d(1024),
-      nn.ReLU(True),
-      # state size. 1024 x 4 x 4
-      nn.ConvTranspose2d(1024, 512, 4, 2, 1, bias=False),
+      nn.ConvTranspose2d(nz, 512, 4, 1, 0, bias=False),
       nn.BatchNorm2d(512),
       nn.ReLU(True),
-      # state size. 512 x 8 x 8
+      # state size. 512 x 4 x 4
       nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
       nn.BatchNorm2d(256),
       nn.ReLU(True),
-      # state size. 256 x 16 x 16
-      nn.ConvTranspose2d(256, 3, 4, 2, 1, bias=False),
+      # state size. 256 x 8 x 8
+      nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(128),
+      nn.ReLU(True),
+      # state size. 128 x 16 x 16
+      nn.ConvTranspose2d(128, 3, 4, 2, 1, bias=False),
       nn.Tanh()
       # state size. 3 x 32 x 32
     )
@@ -137,18 +137,18 @@ class Discriminator(nn.Module):
     self.ngpu = gpus
     self.main = nn.Sequential(
       # inputs is 3 x 32 x 32
-      nn.Conv2d(3, 256, 4, 2, 1, bias=False),
+      nn.Conv2d(3, 128, 4, 2, 1, bias=False),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. 256 x 16 x 16
+      # state size. 128 x 16 x 16
+      nn.Conv2d(128, 256, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(256),
+      nn.LeakyReLU(0.2, inplace=True),
+      # state size. 256 x 8 x 8
       nn.Conv2d(256, 512, 4, 2, 1, bias=False),
       nn.BatchNorm2d(512),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. 512 x 8 x 8
-      nn.Conv2d(512, 1024, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(1024),
-      nn.LeakyReLU(0.2, inplace=True),
-      # state size. 1024 x 4 x 4
-      nn.Conv2d(1024, 1, 4, 1, 0, bias=False),
+      # state size. 512 x 4 x 4
+      nn.Conv2d(512, 1, 4, 1, 0, bias=False),
     )
 
   def forward(self, inputs):
@@ -249,7 +249,9 @@ def train():
       fake_imgs = netG(noise).detach()
 
       # Adversarial loss
-      loss_D = -torch.mean(netD(real_imgs)) + torch.mean(netD(fake_imgs))
+      real_output = netD(real_imgs)
+      fake_output = netD(fake_imgs)
+      loss_D = -torch.mean(real_output) + torch.mean(fake_output)
 
       loss_D.backward()
       optimizerD.step()

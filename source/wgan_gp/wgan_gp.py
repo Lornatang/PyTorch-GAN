@@ -42,16 +42,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', type=str, default='~/pytorch_datasets', help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
 parser.add_argument('--batch_size', type=int, default=64, help='inputs batch size')
-parser.add_argument('--image_size', type=int, default=64, help='the height / width of the inputs image to network')
+parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
-parser.add_argument('--ngf', type=int, default=64)
-parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs to train for')
-parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.00005')
+parser.add_argument('--lr', type=float, default=0.0001, help='learning rate, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
 parser.add_argument('--beta2', type=float, default=0.999, help='beta2 for adam. default=0.999')
 parser.add_argument("--n_critic", type=int, default=5, help='number of training steps for discriminator per iter')
-parser.add_argument("--clip_value", type=float, default=0.01, help='lower and upper clip value for disc. weights')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
@@ -60,11 +57,13 @@ parser.add_argument('--out_images', default='./imgs', help='folder to output ima
 parser.add_argument('--checkpoints_dir', default='./checkpoints', help='folder to output model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--phase', type=str, default='train', help='model mode. default=`train`')
+parser.add_argument('--sample_size', type=int, default=1000, help='generate 1000 pic use classifier.')
 
 opt = parser.parse_args()
 
 try:
   os.makedirs(opt.out_images)
+  os.makedirs("./unknown")
 except OSError:
   pass
 
@@ -81,8 +80,6 @@ if torch.cuda.is_available() and not opt.cuda:
 device = torch.device("cuda:0" if opt.cuda else "cpu")
 ngpu = int(opt.ngpu)
 nz = int(opt.nz)
-ngf = int(opt.ngf)
-ndf = int(opt.ndf)
 
 
 def weights_init(m):
@@ -105,25 +102,21 @@ class Generator(nn.Module):
     self.ngpu = gpus
     self.main = nn.Sequential(
       # inputs is Z, going into a convolution
-      nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
-      nn.BatchNorm2d(ngf * 8),
+      nn.ConvTranspose2d(nz, 1024, 4, 1, 0, bias=False),
+      nn.BatchNorm2d(1024),
       nn.ReLU(True),
-      # state size. (ngf*8) x 4 x 4
-      nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ngf * 4),
+      # state size. 1024 x 4 x 4
+      nn.ConvTranspose2d(1024, 512, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(512),
       nn.ReLU(True),
-      # state size. (ngf*4) x 8 x 8
-      nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ngf * 2),
+      # state size. 512 x 8 x 8
+      nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(256),
       nn.ReLU(True),
-      # state size. (ngf*2) x 16 x 16
-      nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ngf),
-      nn.ReLU(True),
-      # state size. (ngf) x 32 x 32
-      nn.ConvTranspose2d(ngf, 1, 4, 2, 1, bias=False),
+      # state size. 256 x 16 x 16
+      nn.ConvTranspose2d(256, 3, 4, 2, 1, bias=False),
       nn.Tanh()
-      # state size. (nc) x 64 x 64
+      # state size. 3 x 32 x 32
     )
 
   def forward(self, inputs):
@@ -133,10 +126,7 @@ class Generator(nn.Module):
     Returns:
       forwarded data.
     """
-    if inputs.is_cuda and self.ngpu > 1:
-      outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
-    else:
-      outputs = self.main(inputs)
+    outputs = self.main(inputs)
     return outputs
 
 
@@ -148,24 +138,19 @@ class Discriminator(nn.Module):
     super(Discriminator, self).__init__()
     self.ngpu = gpus
     self.main = nn.Sequential(
-      # inputs is (nc) x 64 x 64
-      nn.Conv2d(1, ndf, 4, 2, 1, bias=False),
+      # inputs is 3 x 32 x 32
+      nn.Conv2d(3, 256, 4, 2, 1, bias=False),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf) x 32 x 32
-      nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ndf * 2),
+      # state size. 256 x 16 x 16
+      nn.Conv2d(256, 512, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(512),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf*2) x 16 x 16
-      nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ndf * 4),
+      # state size. 512 x 8 x 8
+      nn.Conv2d(512, 1024, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(1024),
       nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf*4) x 8 x 8
-      nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-      nn.BatchNorm2d(ndf * 8),
-      nn.LeakyReLU(0.2, inplace=True),
-      # state size. (ndf*8) x 4 x 4
-      nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
-      nn.Sigmoid()
+      # state size. 1024 x 4 x 4
+      nn.Conv2d(1024, 1, 4, 1, 0, bias=False),
     )
 
   def forward(self, inputs):
@@ -175,11 +160,7 @@ class Discriminator(nn.Module):
     Returns:
       forwarded data.
     """
-    if inputs.is_cuda and self.ngpu > 1:
-      outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
-    else:
-      outputs = self.main(inputs)
-
+    outputs = self.main(inputs)
     return outputs.view(-1, 1).squeeze(1)
 
 
@@ -221,13 +202,13 @@ def train():
   ################################################
   #               load train dataset
   ################################################
-  dataset = dset.FashionMNIST(root=opt.dataroot,
-                              download=True,
-                              transform=transforms.Compose([
-                                transforms.Resize(opt.image_size),
-                                transforms.ToTensor(),
-                                transforms.Normalize((0.5,), (0.5,)),
-                              ]))
+  dataset = dset.CIFAR10(root=opt.dataroot,
+                         download=True,
+                         transform=transforms.Compose([
+                           transforms.Resize(opt.image_size),
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                         ]))
 
   assert dataset
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size,
@@ -236,18 +217,30 @@ def train():
   ################################################
   #               load model
   ################################################
-  netG = Generator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netG = torch.nn.DataParallel(Generator(ngpu))
+  else:
+    netG = Generator(ngpu)
   if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
-  print(netG)
 
-  netD = Discriminator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netD = torch.nn.DataParallel(Discriminator(ngpu))
+  else:
+    netD = Discriminator(ngpu)
   if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD, map_location=lambda storage, loc: storage))
+
+  # set train mode
+  netG.train()
+  netG = netG.to(device)
+  netD.train()
+  netD = netD.to(device)
+  print(netG)
   print(netD)
 
   ################################################
-  #            Use RMSprop optimizer
+  #            Use Adam optimizer
   ################################################
   optimizerD = Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
   optimizerG = Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, opt.beta2))
@@ -267,19 +260,20 @@ def train():
   for epoch in range(opt.n_epochs):
     for i, data in enumerate(dataloader):
       # get data
-      netD.zero_grad()
       real_imgs = data[0].to(device)
       batch_size = real_imgs.size(0)
+
+      # Sample noise as generator input
+      z = torch.randn(batch_size, nz, 1, 1, device=device)
 
       ##############################################
       # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
       ##############################################
 
-      # Sample noise as generator input
-      noise = torch.randn(batch_size, nz, 1, 1, device=device)
+      optimizerD.zero_grad()
 
       # Generate a batch of images
-      fake_imgs = netG(noise)
+      fake_imgs = netG(z).detach()
 
       # Real images
       real_output = netD(real_imgs)
@@ -301,7 +295,7 @@ def train():
       ##############################################
       if i % opt.n_critic == 0:
         # Generate a batch of images
-        fake_imgs = netG(noise)
+        fake_imgs = netG(z)
         # train fake image
         fake_output = netD(fake_imgs)
         loss_G = -torch.mean(netD(fake_output))
@@ -332,13 +326,20 @@ def generate():
   #               load model
   ################################################
   print(f"Load model...\n")
-  netG = Generator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netG = torch.nn.DataParallel(Generator(ngpu))
+  else:
+    netG = Generator(ngpu)
+  netG.to(device)
   netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
+  netG.eval()
   print(f"Load model successful!")
-  one_noise = torch.randn(1, nz, 1, 1, device=device)
   with torch.no_grad():
-    fake = netG(one_noise).detach().cpu()
-  vutils.save_image(fake, f"{opt.out_images}/fake.png", normalize=True)
+    for i in range(opt.sample_size):
+      z = torch.randn(1, nz, 1, 1, device=device)
+      fake = netG(z).detach().cpu()
+      vutils.save_image(fake, f"unknown/fake_{i:04d}.png", normalize=True)
+  print(f"1000 images have been generated!")
 
 
 def create_gif(file_name):

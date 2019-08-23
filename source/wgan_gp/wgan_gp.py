@@ -26,7 +26,6 @@ import random
 
 import IPython
 import imageio
-import numpy as np
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.utils.data
@@ -164,29 +163,34 @@ class Discriminator(nn.Module):
     return outputs
 
 
-Tensor = torch.cuda.FloatTensor if opt.cuda else torch.FloatTensor
-
-
-def compute_gradient_penalty(D, real_samples, fake_samples):
+def calculate_gradient_penatly(D, real_imgs, fake_imgs):
   """Calculates the gradient penalty loss for WGAN GP"""
-  # Random weight term for interpolation between real and fake samples
-  alpha = Tensor(np.random.random((real_samples.size(0), 1, 1, 1)))
-  # Get random interpolation between real and fake samples
-  interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-  d_interpolates = D(interpolates)
-  fake = Variable(Tensor(real_samples.shape[0], 1).fill_(1.0), requires_grad=False)
-  # Get gradient w.r.t. interpolates
+  eta = torch.FloatTensor(real_imgs.size(0), 1, 1, 1).uniform_(0, 1)
+  eta = eta.expand(real_imgs.size(0), real_imgs.size(1), real_imgs.size(2), real_imgs.size(3))
+  eta.to(device)
+
+  interpolated = eta * real_imgs + ((1 - eta) * fake_imgs)
+  interpolated.to(device)
+
+  # define it to calculate gradient
+  interpolated = Variable(interpolated, requires_grad=True)
+
+  # calculate probaility of interpolated examples
+  prob_interpolated = D(interpolated)
+
+  # calculate gradients of probabilities with respect to examples
   gradients = autograd.grad(
-    outputs=d_interpolates,
-    inputs=interpolates,
-    grad_outputs=fake,
+    outputs=prob_interpolated,
+    inputs=interpolated,
+    grad_outputs=torch.ones(prob_interpolated.size()).to(device),
     create_graph=True,
     retain_graph=True,
     only_inputs=True,
   )[0]
-  gradients = gradients.view(gradients.size(0), -1)
-  gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-  return gradient_penalty
+
+  gradients_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+
+  return gradients_penalty
 
 
 fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)
@@ -284,7 +288,7 @@ def train():
       fake_output = netD(fake_imgs)
 
       # Gradient penalty
-      gradient_penalty = compute_gradient_penalty(netD, real_imgs.data, fake_imgs.data)
+      gradient_penalty = calculate_gradient_penatly(netD, real_imgs.data, fake_imgs.data)
       # Adversarial loss
       loss_D = -torch.mean(real_output) + torch.mean(fake_output) + lambda_gp * gradient_penalty
 
@@ -301,7 +305,7 @@ def train():
         fake_imgs = netG(z)
         # train fake image
         fake_output = netD(fake_imgs)
-        loss_G = -torch.mean(netD(fake_output))
+        loss_G = -torch.mean(fake_output)
 
         loss_G.backward()
         optimizerG.step()

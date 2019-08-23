@@ -159,7 +159,7 @@ class Discriminator(nn.Module):
       forwarded data.
     """
     outputs = self.main(inputs)
-    return outputs.view(-1, 1).squeeze(1)
+    return outputs
 
 
 fixed_noise = torch.randn(opt.batch_size, nz, 1, 1, device=device)

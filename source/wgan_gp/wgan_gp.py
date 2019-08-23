@@ -166,8 +166,7 @@ class Discriminator(nn.Module):
 def calculate_gradient_penatly(D, real_imgs, fake_imgs):
   """Calculates the gradient penalty loss for WGAN GP"""
   eta = torch.FloatTensor(real_imgs.size(0), 1, 1, 1).uniform_(0, 1).to(device)
-  eta = eta.expand(real_imgs.size(0), real_imgs.size(1), real_imgs.size(2), real_imgs.size(3))
-  eta.to(device)
+  eta = eta.expand(real_imgs.size(0), real_imgs.size(1), real_imgs.size(2), real_imgs.size(3)).to(device)
 
   interpolated = eta * real_imgs + ((1 - eta) * fake_imgs)
   interpolated.to(device)

@@ -169,9 +169,9 @@ def compute_gradient_penalty(D, real_samples, fake_samples):
   # Random weight term for interpolation between real and fake samples
   alpha = torch.tensor(np.random.random((real_samples.size(0), 1, 1, 1))).to(device)
   # Get random interpolation between real and fake samples
-  interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+  interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True).to(device)
   d_interpolates = D(interpolates)
-  fake = Variable(torch.tensor(real_samples.shape[0], 1).fill_(1.0), requires_grad=False).to(device)
+  fake = Variable(torch.tensor(real_samples.shape[0], 1).fill_(1.0).to(device), requires_grad=False)
   # Get gradient w.r.t. interpolates
   gradients = autograd.grad(
     outputs=d_interpolates,

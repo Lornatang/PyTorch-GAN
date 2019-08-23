@@ -42,7 +42,6 @@ parser.add_argument('--workers', type=int, help='number of data loading workers'
 parser.add_argument('--batch_size', type=int, default=64, help='inputs batch size')
 parser.add_argument('--image_size', type=int, default=32, help='the height / width of the inputs image to network')
 parser.add_argument('--n_classes', type=int, default=10, help='number of classes for dataset')
-parser.add_argument('--channels', type=int, default=1, help='number of image channels')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
@@ -55,12 +54,14 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--out_images', default='./imgs', help='folder to output images')
 parser.add_argument('--checkpoints_dir', default='./checkpoints', help='folder to output model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
-parser.add_argument('--phase', type=str, default='train', help='model mode. default=`train`')
+parser.add_argument('--phase', type=str, default='generate', help='model mode. default=`generate`')
 
 opt = parser.parse_args()
+print(opt)
 
 try:
   os.makedirs(opt.out_images)
+  os.makedirs("./unknown")
 except OSError:
   pass
 
@@ -108,43 +109,31 @@ class Generator(nn.Module):
     self.l1 = nn.Sequential(nn.Linear(nz, 128 * self.init_size ** 2))
 
     self.conv_blocks = nn.Sequential(
-      nn.BatchNorm2d(128),
+      nn.BatchNorm2d(256),
       nn.Upsample(scale_factor=2),
-      nn.Conv2d(128, 128,
-                kernel_size=(3, 3),
-                stride=1,
-                padding=1),
+      nn.Conv2d(256, 128, 3, 1, 1),
       nn.BatchNorm2d(128, 0.8),
       nn.LeakyReLU(0.2, inplace=True),
       nn.Upsample(scale_factor=2),
-      nn.Conv2d(128, 64,
-                kernel_size=(3, 3),
-                stride=1,
-                padding=1),
+      nn.Conv2d(128, 64, 3, 1, 1),
       nn.BatchNorm2d(64, 0.8),
       nn.LeakyReLU(0.2, inplace=True),
-      nn.Conv2d(64, opt.channels,
-                kernel_size=(3, 3),
-                stride=1,
-                padding=1),
+      nn.Conv2d(64, 1, 1, 1),
       nn.Tanh()
     )
 
-  def forward(self, inputs, labels):
+  def forward(self, noise, labels):
     """ forward layer
     Args:
-      inputs: input tensor data.
+      noise: input tensor data.
       labels: data label.
     Returns:
       forwarded data.
     """
-    inputs = torch.mul(self.label_emb(labels), inputs)
-    inputs = self.l1(inputs)
-    inputs = inputs.view(inputs.shape[0], 128, self.init_size, self.init_size)
-    if inputs.is_cuda and self.ngpu > 1:
-      outputs = nn.parallel.data_parallel(self.conv_blocks, inputs, range(self.ngpu))
-    else:
-      outputs = self.conv_blocks(inputs)
+    noise = torch.mul(self.label_emb(labels), noise)
+    noise = self.l1(noise)
+    noise = noise.view(noise.shape[0], 256, self.init_size, self.init_size)
+    outputs = self.conv_blocks(noise)
     return outputs
 
 
@@ -164,41 +153,30 @@ class Discriminator(nn.Module):
       return block
 
     self.conv_blocks = nn.Sequential(
-      *discriminator_block(opt.channels, 16, bn=False),
-      *discriminator_block(16, 32),
+      *discriminator_block(1, 32, bn=False),
       *discriminator_block(32, 64),
       *discriminator_block(64, 128),
+      *discriminator_block(128, 256),
     )
 
     # The height and width of downsampled image
     ds_size = opt.image_size // 2 ** 4
 
     # Output layers
-    self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1), nn.Sigmoid())
-    self.aux_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, opt.n_classes), nn.Softmax())
+    self.adv_layer = nn.Sequential(nn.Linear(256 * ds_size ** 2, 1), nn.Sigmoid())
+    self.aux_layer = nn.Sequential(nn.Linear(256 * ds_size ** 2, opt.n_classes), nn.Softmax())
 
-    self.main = nn.Sequential(
-      nn.Linear(784, 512),
-      nn.Linear(512, 256),
-      nn.Linear(256, 1),
-      nn.Sigmoid()
-    )
-
-  def forward(self, inputs):
+  def forward(self, img):
     """ forward layer
     Args:
-      inputs: input tensor data.
+      img: input tensor data.
     Returns:
       forwarded data.
     """
-    inputs = self.conv_blocks(inputs)
-    inputs = inputs.view(inputs.shape[0], -1)
-    if inputs.is_cuda and self.ngpu > 1:
-      validity = nn.parallel.data_parallel(self.adv_layer, inputs, range(self.ngpu))
-      label = nn.parallel.data_parallel(self.aux_layer, inputs, range(self.ngpu))
-    else:
-      validity = self.adv_layer(inputs)
-      label = self.aux_layer(inputs)
+    out = self.conv_blocks(img)
+    out = out.view(out.shape[0], -1)
+    validity = self.adv_layer(out)
+    label = self.aux_layer(out)
     return validity, label
 
 
@@ -228,21 +206,32 @@ def train():
   ################################################
   #               load model
   ################################################
-  netG = Generator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netG = torch.nn.DataParallel(Generator(ngpu))
+  else:
+    netG = Generator(ngpu)
   if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG, map_location=lambda storage, loc: storage))
-  print(netG)
 
-  netD = Discriminator(ngpu).to(device)
+  if torch.cuda.device_count() > 1:
+    netD = torch.nn.DataParallel(Discriminator(ngpu))
+  else:
+    netD = Discriminator(ngpu)
   if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD, map_location=lambda storage, loc: storage))
+
+  netG.train()
+  netG = netG.to(device)
+  netD.train()
+  netD = netD.to(device)
+  print(netG)
   print(netD)
 
   ################################################
   #           Loss functions
   ################################################
-  adversarial_loss = torch.nn.BCELoss()
-  auxiliary_loss = torch.nn.CrossEntropyLoss()
+  adversarial_loss = torch.nn.BCELoss().to(device)
+  auxiliary_loss = torch.nn.CrossEntropyLoss().to(device)
 
   ################################################
   #            Use Adam optimizer
@@ -265,16 +254,16 @@ def train():
   for epoch in range(opt.n_epochs):
     for i, (data, labels) in enumerate(dataloader):
       # get data
-      real_data = data.to(device)
-      real_labels = labels.to(device)
-      batch_size = real_data.size(0)
+      real_imgs = data.to(device)
+      labels = labels.to(device)
+      batch_size = real_imgs.size(0)
 
       # real data label is 1, fake data label is 0.
       valid = torch.full((batch_size,), 1, device=device)
       fake = torch.full((batch_size,), 0, device=device)
       # Sample noise as generator input
       noise = torch.randn(batch_size, nz, 1, 1, device=device)
-      fake_labels = torch.tensor(np.random.randint(0, opt.n_classes, batch_size))
+      fake_labels = torch.autograd.Variable(torch.LongTensor(np.random.randint(0, opt.n_classes, batch_size)).to(device))
 
       ##############################################
       # (1) Update G network: maximize log(D(G(z)))
@@ -283,10 +272,10 @@ def train():
       optimizerG.zero_grad()
 
       # Generate a batch of images
-      fake_data = netG(noise, fake_labels)
+      fake_imgs = netG(noise, fake_labels)
 
       # Loss measures generator's ability to fool the discriminator
-      validity, pred_label = netD(fake_data)
+      validity, pred_label = netD(fake_imgs)
       loss_G = 0.5 * (adversarial_loss(validity, valid) + auxiliary_loss(pred_label, fake_labels))
 
       loss_G.backward()
@@ -299,11 +288,11 @@ def train():
       optimizerD.zero_grad()
 
       # Loss for real images
-      real_pred, real_aux = netD(real_data)
-      d_real_loss = (adversarial_loss(real_pred, valid) + auxiliary_loss(real_aux, real_labels)) / 2
+      real_pred, real_aux = netD(real_imgs)
+      d_real_loss = (adversarial_loss(real_pred, valid) + auxiliary_loss(real_aux, labels)) / 2
 
       # Loss for fake images
-      fake_pred, fake_aux = netD(fake_data.detach())
+      fake_pred, fake_aux = netD(fake_imgs.detach())
       d_fake_loss = (adversarial_loss(fake_pred, fake) + auxiliary_loss(fake_aux, fake_labels)) / 2
 
       # Total discriminator loss
@@ -324,7 +313,7 @@ def train():
             f"Loss_G: {loss_G.item():.4f}", end="\r")
 
       if i % 100 == 0:
-        vutils.save_image(real_data, f"{opt.out_images}/real_samples.png", normalize=True)
+        vutils.save_image(real_imgs, f"{opt.out_images}/real_samples.png", normalize=True)
         with torch.no_grad():
           fake = netG(fixed_noise).detach().cpu()
         vutils.save_image(fake, f"{opt.out_images}/fake_samples_epoch_{epoch + 1:03d}.png", normalize=True)

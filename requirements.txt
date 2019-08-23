@@ -1,3 +1,4 @@
+opencv-python
 IPython
 imageio
 pillow
